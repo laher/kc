@@ -11,6 +11,8 @@ It simplifies a few operations which I tend to use a lot
  * exec
  * shell
  * get versions of pods
+ * apply/replace
+ * 'bounce' (scale down & up)
 
 It's not meant to be a full replacement or in the least bit comprehensive. If you want it do be different, I recommend you fork it and bend it to your own will. PRs would also be great, but I'd like to see other people twist it all around for different use cases.
 

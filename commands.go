@@ -27,7 +27,7 @@ func execPod() (int, error) {
 		append(args, r...)...), *execCommand.verbose)
 }
 
-func logg(c subcommand, follow bool, tail int) (int, error) {
+func logg(c *subcommand, follow bool, tail int) (int, error) {
 	if len(*c.remainder) < 1 {
 		log.Printf("Need an identifier for log")
 		os.Exit(1)
@@ -45,6 +45,26 @@ func logg(c subcommand, follow bool, tail int) (int, error) {
 	args := (*c.remainder)[1:]
 	allArgs = append(allArgs, args...)
 	return run(prepKC(c, allArgs...), *c.verbose)
+}
+
+func bounce() (int, error) {
+	args := []string{"scale", "--current-replicas=1", "--replicas=0", "deploy", *bounceDeployment}
+	ex, err := run(prepKC(bounceCommand, args...), *bounceCommand.verbose)
+	if err != nil {
+		return ex, err
+	}
+	args = []string{"scale", "--current-replicas=0", "--replicas=1", "deploy", *bounceDeployment}
+	return run(prepKC(bounceCommand, args...), *bounceCommand.verbose)
+}
+
+func apply() (int, error) {
+	args := []string{"apply", "-f", *applyFile}
+	return run(prepKC(applyCommand, args...), *applyCommand.verbose)
+}
+
+func replace() (int, error) {
+	args := []string{"replace", "--cascade", "--force", "-f", *replaceFile}
+	return run(prepKC(replaceCommand, args...), *replaceCommand.verbose)
 }
 
 func shell() (int, error) {

@@ -14,18 +14,62 @@ import (
 )
 
 var (
-	getCommand      = kingpin.Command("g", "Get").Alias("get")
-	getPodCommand   = sub(getCommand.Command("p", "Get pods").Alias("pod").Alias("pods"))
-	versionsCommand = sub(kingpin.Command("v", "Get pod versions").Alias("version"))
-	execCommand     = sub(kingpin.Command("x", "Exec onto a pod").Alias("exec"))
-	execContainer   = execCommand.command.Flag("co", "container").String()
-	shCommand       = sub(kingpin.Command("sh", "Shell (bash) onto a box").Alias("bash"))
-	shContainer     = shCommand.command.Flag("co", "container").String()
-	logCommand      = sub(kingpin.Command("l", "log").Alias("log"))
-	logFollow       = logCommand.command.Flag("follow", "follow").Short('f').Bool()
-	logTail         = logCommand.command.Flag("tail", "tail").Short('t').Default("-1").Int()
-	tailCommand     = sub(kingpin.Command("t", "tail log").Alias("tail"))
+	getCommand       = kingpin.Command("g", "Get").Alias("get")
+	getPodCommand    = sub(getCommand.Command("p", "Get pods").Alias("pod").Alias("pods"))
+	versionsCommand  = sub(kingpin.Command("v", "Get pod versions").Alias("version"))
+	execCommand      = sub(kingpin.Command("x", "Exec onto a pod").Alias("exec"))
+	execContainer    = execCommand.command.Flag("co", "container").String()
+	shCommand        = sub(kingpin.Command("sh", "Shell (bash) onto a box").Alias("bash"))
+	shContainer      = shCommand.command.Flag("co", "container").String()
+	logCommand       = sub(kingpin.Command("l", "log").Alias("log"))
+	logFollow        = logCommand.command.Flag("follow", "follow").Short('f').Bool()
+	logTail          = logCommand.command.Flag("tail", "tail").Short('t').Default("-1").Int()
+	tailCommand      = sub(kingpin.Command("t", "tail log").Alias("tail"))
+	applyCommand     = sub(kingpin.Command("a", "apply using a k8s file").Alias("apply"))
+	applyFile        = applyCommand.command.Arg("file", "k8s file name").String()
+	replaceCommand   = sub(kingpin.Command("r", "replace using a k8s file").Alias("replace"))
+	replaceFile      = replaceCommand.command.Arg("file", "k8s file name").String()
+	bounceCommand    = sub(kingpin.Command("b", "Bounce a deployment").Alias("bounce"))
+	bounceDeployment = bounceCommand.command.Arg("deployment", "deployment name").String()
 )
+
+func init() {
+
+	remainder(getPodCommand, versionsCommand, execCommand, shCommand, logCommand, tailCommand, applyCommand, replaceCommand, bounceCommand)
+}
+
+func main() {
+	ex, err := kc()
+	if err != nil {
+		log.Printf("Error: %v", err)
+	}
+	os.Exit(ex)
+}
+
+func kc() (int, error) {
+	switch kingpin.Parse() {
+	case "g p": //not really important IMO
+		return run(prepKC(getPodCommand, "get", "pod"), *getPodCommand.verbose)
+	case "v":
+		return versions()
+	case "x":
+		return execPod()
+	case "sh":
+		return shell()
+	case "l":
+		return logg(logCommand, *logFollow, *logTail)
+	case "t":
+		return logg(tailCommand, true, 1)
+	case "a":
+		return apply()
+	case "r":
+		return replace()
+	case "b":
+		return bounce()
+	default:
+		return 1, errors.New("Unsupported subcommand")
+	}
+}
 
 type subcommand struct {
 	command   *kingpin.CmdClause
@@ -34,12 +78,17 @@ type subcommand struct {
 	verbose   *bool
 }
 
-func sub(c *kingpin.CmdClause) subcommand {
-	s := subcommand{
-		command:   c,
-		context:   c.Flag("context", "Context").Short('c').String(),
-		remainder: remainingArgs(c.Arg("remainder", "Remaining kubectl args")),
-		verbose:   c.Flag("verbose", "Show verbose loggng").Short('v').Bool(),
+func remainder(cs ...*subcommand) {
+	for _, c := range cs {
+		c.remainder = remainingArgs(c.command.Arg("remainder", "Remaining kubectl args"))
+	}
+}
+
+func sub(c *kingpin.CmdClause) *subcommand {
+	s := &subcommand{
+		command: c,
+		context: c.Flag("context", "Context").Short('c').String(),
+		verbose: c.Flag("verbose", "Show verbose loggng").Short('v').Bool(),
 	}
 	return s
 }
@@ -65,39 +114,8 @@ func remainingArgs(s kingpin.Settings) *[]string {
 	return target
 }
 
-func main() {
-	ex, err := kc()
-	if err != nil {
-		log.Printf("Error: %v", err)
-	}
-	os.Exit(ex)
-}
-
-func kc() (int, error) {
-	switch kingpin.Parse() {
-	case "g p":
-		return run(prepKC(getPodCommand, "get", "pod"), *getPodCommand.verbose)
-
-	case "v":
-		return versions()
-
-	case "x":
-		return execPod()
-
-	case "sh":
-		return shell()
-
-	case "l":
-		return logg(logCommand, *logFollow, *logTail)
-
-	case "t":
-		return logg(tailCommand, true, 1)
-	default:
-		return 1, errors.New("Unsupported function")
-	}
-}
-
-func pod(c subcommand, p string) string {
+//resolve pod name using a selector if necessary
+func pod(c *subcommand, p string) string {
 	switch {
 	case strings.Contains(p, "="):
 		gpC := prepKC(c, "get", "pod", "-o=name", "--selector", p)
@@ -129,7 +147,7 @@ func pod(c subcommand, p string) string {
 	}
 }
 
-func prepKC(sc subcommand, args ...string) *exec.Cmd {
+func prepKC(sc *subcommand, args ...string) *exec.Cmd {
 	allArgs := []string{"kubectl"}
 	if *sc.context != "" {
 		allArgs = append(allArgs, "--context", *sc.context)

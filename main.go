@@ -3,22 +3,35 @@ package main
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/alecthomas/kingpin"
 )
 
+var (
+	getCommand      = kingpin.Command("g", "Get").Alias("get")
+	getPodCommand   = sub(getCommand.Command("p", "Get pods").Alias("pod").Alias("pods"))
+	versionsCommand = sub(kingpin.Command("v", "Get pod versions").Alias("version"))
+	execCommand     = sub(kingpin.Command("x", "Exec onto a pod").Alias("exec"))
+	execContainer   = execCommand.command.Flag("co", "container").String()
+	shCommand       = sub(kingpin.Command("sh", "Shell (bash) onto a box").Alias("bash"))
+	shContainer     = shCommand.command.Flag("co", "container").String()
+	logCommand      = sub(kingpin.Command("l", "log").Alias("log"))
+	logFollow       = logCommand.command.Flag("follow", "follow").Short('f').Bool()
+	logTail         = logCommand.command.Flag("tail", "tail").Short('t').Default("-1").Int()
+	tailCommand     = sub(kingpin.Command("t", "tail log").Alias("tail"))
+)
+
 type subcommand struct {
 	command   *kingpin.CmdClause
 	context   *string
 	remainder *[]string
+	verbose   *bool
 }
 
 func sub(c *kingpin.CmdClause) subcommand {
@@ -26,21 +39,10 @@ func sub(c *kingpin.CmdClause) subcommand {
 		command:   c,
 		context:   c.Flag("context", "Context").Short('c').String(),
 		remainder: remainingArgs(c.Arg("remainder", "Remaining kubectl args")),
+		verbose:   c.Flag("verbose", "Show verbose loggng").Short('v').Bool(),
 	}
 	return s
 }
-
-var (
-	getCommand      = kingpin.Command("g", "Get").Alias("get")
-	getPodCommand   = sub(getCommand.Command("p", "pods").Alias("pod").Alias("pods"))
-	versionsCommand = sub(kingpin.Command("v", "Get pod versions").Alias("version"))
-	execCommand     = sub(kingpin.Command("x", "exec on a pod").Alias("exec"))
-	shCommand       = sub(kingpin.Command("sh", "Shell (bash) onto a box").Alias("bash"))
-	logCommand      = sub(kingpin.Command("l", "log").Alias("log"))
-	logFollow       = logCommand.command.Flag("follow", "follow").Short('f').Bool()
-	logTail         = logCommand.command.Flag("tail", "tail").Short('t').Default("-1").Int()
-	tailCommand     = sub(kingpin.Command("t", "tail log").Alias("tail"))
-)
 
 type rka []string
 
@@ -70,10 +72,11 @@ func main() {
 	}
 	os.Exit(ex)
 }
+
 func kc() (int, error) {
 	switch kingpin.Parse() {
 	case "g p":
-		return run(prepKC(getPodCommand, "get", "pod"))
+		return run(prepKC(getPodCommand, "get", "pod"), *getPodCommand.verbose)
 
 	case "v":
 		return versions()
@@ -94,19 +97,10 @@ func kc() (int, error) {
 	}
 }
 
-func execPod() (int, error) {
-	if len(*execCommand.remainder) < 1 {
-		log.Printf("Need an identifier for exec")
-		os.Exit(1)
-	}
-	return run(prepKC(execCommand,
-		append([]string{"exec", "-it"}, *execCommand.remainder...)...))
-}
-
-func pod(cmd subcommand, p string) string {
+func pod(c subcommand, p string) string {
 	switch {
 	case strings.Contains(p, "="):
-		gpC := prepKC(cmd, "get", "pod", "-o=name", "--selector", p)
+		gpC := prepKC(c, "get", "pod", "-o=name", "--selector", p)
 		r, w := io.Pipe()
 		gpC.Stdout = w
 		br := bufio.NewReader(r)
@@ -121,82 +115,18 @@ func pod(cmd subcommand, p string) string {
 				name = string(b)
 			}
 		}()
-		ex, err := run(gpC)
+		ex, err := run(gpC, *c.verbose)
 		if err != nil {
 			log.Printf("Error fetching pod %s\n", err)
 			os.Exit(ex)
+		}
+		if strings.HasPrefix(name, "pod/") {
+			return name[4:]
 		}
 		return name
 	default:
 		return p
 	}
-}
-
-func logg(c subcommand, follow bool, tail int) (int, error) {
-	if len(*c.remainder) < 1 {
-		log.Printf("Need an identifier for log")
-		os.Exit(1)
-	}
-	p := (*c.remainder)[0]
-	allArgs := []string{"log"}
-	if follow {
-		allArgs = append(allArgs, "-f")
-	}
-	if tail != -1 {
-		allArgs = append(allArgs, "--tail", strconv.Itoa(tail))
-	}
-	pod := pod(c, p)
-	allArgs = append(allArgs, pod)
-	args := (*c.remainder)[1:]
-	allArgs = append(allArgs, args...)
-	return run(prepKC(c, allArgs...))
-}
-
-func shell() (int, error) {
-	if len(*shCommand.remainder) < 1 {
-		log.Printf("Need an identifier for exec")
-		os.Exit(1)
-	}
-	p := (*shCommand.remainder)[0]
-	pod := ""
-	args := (*shCommand.remainder)[1:]
-	switch {
-	case strings.HasPrefix(p, "d/"):
-		pod = p[2:]
-	default:
-		pod = p
-	}
-	return run(prepKC(shCommand, append([]string{"exec", "-it", pod, "bash"}, args...)...))
-}
-
-func versions() (int, error) {
-	cmd := prepKC(versionsCommand,
-		"get", "pod", "-o", "jsonpath='{range .items[*].spec.containers[*]}{.name}{\"\\t\"}{.image}{\"\\n\"}{end}'")
-	r, w := io.Pipe()
-	cmd.Stdout = w
-	br := bufio.NewReader(r)
-	go func() {
-		for {
-			b, _, err := br.ReadLine()
-			if err != nil {
-				//done
-				return
-			}
-			s := string(b)
-			parts := strings.Split(s, "\t")
-			fmt.Print(parts[0], "\t")
-			if len(parts) > 1 {
-				parts2 := strings.Split(parts[1], "/")
-				if len(parts2) > 1 {
-					fmt.Println(parts2[1])
-				} else {
-
-					fmt.Println(parts2[0])
-				}
-			}
-		}
-	}()
-	return run(cmd)
 }
 
 func prepKC(sc subcommand, args ...string) *exec.Cmd {
@@ -223,9 +153,7 @@ func prep(args ...string) *exec.Cmd {
 	return cmd
 }
 
-var verbose = false
-
-func run(cmd *exec.Cmd) (int, error) {
+func run(cmd *exec.Cmd, verbose bool) (int, error) {
 	if verbose {
 		log.Printf("Running cmd: %s", cmd.Args)
 	}

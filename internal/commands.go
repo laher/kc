@@ -17,18 +17,18 @@ func ExecPod() (int, error) {
 	}
 	p := (*execCommand.remainder)[0]
 	r := (*execCommand.remainder)[1:]
-	pod := Pod(execCommand, p)
+	pod := Pod(*execCommand.context, *execCommand.verbose, p)
 	args = append(args, pod)
 	return Run(PrepKC(*execCommand.context,
 		append(args, r...)...), *execCommand.verbose)
 }
 
-func Logg(c *subcommand, follow bool, tail int) (int, error) {
-	if len(*c.remainder) < 1 {
+func Logg(context string, verbose, follow bool, tail int, args []string) (int, error) {
+	if len(args) < 1 {
 		log.Printf("Need an identifier for log")
 		os.Exit(1)
 	}
-	p := (*c.remainder)[0]
+	p := (args)[0]
 	allArgs := []string{"log"}
 	if follow {
 		allArgs = append(allArgs, "-f")
@@ -36,11 +36,10 @@ func Logg(c *subcommand, follow bool, tail int) (int, error) {
 	if tail != -1 {
 		allArgs = append(allArgs, "--tail", strconv.Itoa(tail))
 	}
-	pod := Pod(c, p)
+	pod := Pod(context, verbose, p)
 	allArgs = append(allArgs, pod)
-	args := (*c.remainder)[1:]
-	allArgs = append(allArgs, args...)
-	return Run(PrepKC(*c.context, allArgs...), *c.verbose)
+	allArgs = append(allArgs, args[1:]...)
+	return Run(PrepKC(context, allArgs...), verbose)
 }
 
 func Bounce() (int, error) {
@@ -73,7 +72,7 @@ func Shell() (int, error) {
 		args = append(args, "-c", *execContainer)
 	}
 	p := (*shCommand.remainder)[0]
-	pod := Pod(shCommand, p)
+	pod := Pod(*shCommand.context, *shCommand.verbose, p)
 	args = append(args, pod, "sh")
 	args = append(args, (*shCommand.remainder)[1:]...)
 	return Run(PrepKC(*shCommand.context, args...), *shCommand.verbose)

@@ -115,10 +115,10 @@ func RemainingArgs(s kingpin.Settings) *[]string {
 }
 
 //resolve pod name using a selector if necessary
-func Pod(c *subcommand, p string) string {
+func Pod(context string, verbose bool, p string) string {
 	switch {
 	case strings.Contains(p, "="):
-		gpC := PrepKC(*c.context, "get", "pod", "-o=name", "--selector", p)
+		gpC := PrepKC(context, "get", "pod", "-o=name", "--selector", p)
 		r, w := io.Pipe()
 		gpC.Stdout = w
 		br := bufio.NewReader(r)
@@ -133,7 +133,7 @@ func Pod(c *subcommand, p string) string {
 				name = string(b)
 			}
 		}()
-		ex, err := Run(gpC, *c.verbose)
+		ex, err := Run(gpC, verbose)
 		if err != nil {
 			log.Printf("Error fetching pod %s\n", err)
 			os.Exit(ex)

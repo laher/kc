@@ -1,8 +1,7 @@
-package main
+package kc
 
 import (
 	"bufio"
-	"errors"
 	"io"
 	"log"
 	"os"
@@ -15,30 +14,30 @@ import (
 
 var (
 	getCommand       = kingpin.Command("g", "Get").Alias("get")
-	getPodCommand    = sub(getCommand.Command("p", "Get pods").Alias("pod").Alias("pods"))
-	versionsCommand  = sub(kingpin.Command("v", "Get pod versions").Alias("version"))
-	execCommand      = sub(kingpin.Command("x", "Exec onto a pod").Alias("exec"))
+	getPodCommand    = Sub(getCommand.Command("p", "Get pods").Alias("pod").Alias("pods"))
+	execCommand      = Sub(kingpin.Command("x", "Exec onto a pod").Alias("exec"))
 	execContainer    = execCommand.command.Flag("co", "container").String()
-	shCommand        = sub(kingpin.Command("sh", "Shell (bash) onto a box").Alias("bash"))
+	shCommand        = Sub(kingpin.Command("sh", "Shell (bash) onto a box").Alias("bash"))
 	shContainer      = shCommand.command.Flag("co", "container").String()
-	logCommand       = sub(kingpin.Command("l", "log").Alias("log"))
+	logCommand       = Sub(kingpin.Command("l", "log").Alias("log"))
 	logFollow        = logCommand.command.Flag("follow", "follow").Short('f').Bool()
 	logTail          = logCommand.command.Flag("tail", "tail").Short('t').Default("-1").Int()
-	tailCommand      = sub(kingpin.Command("t", "tail log").Alias("tail"))
-	applyCommand     = sub(kingpin.Command("a", "apply using a k8s file").Alias("apply"))
+	tailCommand      = Sub(kingpin.Command("t", "tail log").Alias("tail"))
+	applyCommand     = Sub(kingpin.Command("a", "apply using a k8s file").Alias("apply"))
 	applyFile        = applyCommand.command.Arg("file", "k8s file name").String()
-	replaceCommand   = sub(kingpin.Command("r", "replace using a k8s file").Alias("replace"))
+	replaceCommand   = Sub(kingpin.Command("r", "replace using a k8s file").Alias("replace"))
 	replaceFile      = replaceCommand.command.Arg("file", "k8s file name").String()
-	bounceCommand    = sub(kingpin.Command("b", "Bounce a deployment").Alias("bounce"))
+	bounceCommand    = Sub(kingpin.Command("b", "Bounce a deployment").Alias("bounce"))
 	bounceDeployment = bounceCommand.command.Arg("deployment", "deployment name").String()
 )
 
 func init() {
 
-	remainder(getPodCommand, versionsCommand, execCommand, shCommand, logCommand, tailCommand, applyCommand, replaceCommand, bounceCommand)
+	//	Remainder(getPodCommand, versionsCommand, execCommand, shCommand, logCommand, tailCommand, applyCommand, replaceCommand, bounceCommand)
 }
 
-func main() {
+/*
+func Main() {
 	ex, err := kc()
 	if err != nil {
 		log.Printf("Error: %v", err)
@@ -46,30 +45,31 @@ func main() {
 	os.Exit(ex)
 }
 
-func kc() (int, error) {
+func Kc() (int, error) {
 	switch kingpin.Parse() {
 	case "g p": //not really important IMO
-		return run(prepKC(getPodCommand, "get", "pod"), *getPodCommand.verbose)
+		return Run(PrepKC(getPodCommand, "get", "pod"), *getPodCommand.verbose)
 	case "v":
-		return versions()
+		return Versions()
 	case "x":
-		return execPod()
+		return ExecPod()
 	case "sh":
-		return shell()
+		return Shell()
 	case "l":
-		return logg(logCommand, *logFollow, *logTail)
+		return Logg(logCommand, *logFollow, *logTail)
 	case "t":
-		return logg(tailCommand, true, 1)
+		return Logg(tailCommand, true, 1)
 	case "a":
-		return apply()
+		return Apply()
 	case "r":
-		return replace()
+		return Replace()
 	case "b":
-		return bounce()
+		return Bounce()
 	default:
 		return 1, errors.New("Unsupported subcommand")
 	}
 }
+*/
 
 type subcommand struct {
 	command   *kingpin.CmdClause
@@ -78,13 +78,13 @@ type subcommand struct {
 	verbose   *bool
 }
 
-func remainder(cs ...*subcommand) {
+func Remainder(cs ...*subcommand) {
 	for _, c := range cs {
-		c.remainder = remainingArgs(c.command.Arg("remainder", "Remaining kubectl args"))
+		c.remainder = RemainingArgs(c.command.Arg("remainder", "Remaining kubectl args"))
 	}
 }
 
-func sub(c *kingpin.CmdClause) *subcommand {
+func Sub(c *kingpin.CmdClause) *subcommand {
 	s := &subcommand{
 		command: c,
 		context: c.Flag("context", "Context").Short('c').String(),
@@ -108,17 +108,17 @@ func (i *rka) IsCumulative() bool {
 	return true
 }
 
-func remainingArgs(s kingpin.Settings) *[]string {
+func RemainingArgs(s kingpin.Settings) *[]string {
 	target := new([]string)
 	s.SetValue((*rka)(target))
 	return target
 }
 
 //resolve pod name using a selector if necessary
-func pod(c *subcommand, p string) string {
+func Pod(c *subcommand, p string) string {
 	switch {
 	case strings.Contains(p, "="):
-		gpC := prepKC(c, "get", "pod", "-o=name", "--selector", p)
+		gpC := PrepKC(*c.context, "get", "pod", "-o=name", "--selector", p)
 		r, w := io.Pipe()
 		gpC.Stdout = w
 		br := bufio.NewReader(r)
@@ -133,7 +133,7 @@ func pod(c *subcommand, p string) string {
 				name = string(b)
 			}
 		}()
-		ex, err := run(gpC, *c.verbose)
+		ex, err := Run(gpC, *c.verbose)
 		if err != nil {
 			log.Printf("Error fetching pod %s\n", err)
 			os.Exit(ex)
@@ -147,15 +147,15 @@ func pod(c *subcommand, p string) string {
 	}
 }
 
-func prepKC(sc *subcommand, args ...string) *exec.Cmd {
+func PrepKC(context string, args ...string) *exec.Cmd {
 	allArgs := []string{"kubectl"}
-	if *sc.context != "" {
-		allArgs = append(allArgs, "--context", *sc.context)
+	if context != "" {
+		allArgs = append(allArgs, "--context", context)
 	}
-	return prep(append(allArgs, args...)...)
+	return Prep(append(allArgs, args...)...)
 }
 
-func prep(args ...string) *exec.Cmd {
+func Prep(args ...string) *exec.Cmd {
 	p, err := exec.LookPath(args[0])
 	if err != nil {
 		log.Printf("Couldn't find exe %s - %s", p, err)
@@ -171,7 +171,7 @@ func prep(args ...string) *exec.Cmd {
 	return cmd
 }
 
-func run(cmd *exec.Cmd, verbose bool) (int, error) {
+func Run(cmd *exec.Cmd, verbose bool) (int, error) {
 	if verbose {
 		log.Printf("Running cmd: %s", cmd.Args)
 	}

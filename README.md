@@ -3,7 +3,7 @@ a wrapper for a few kubectl commands
 
 ## Background
 
-kc is a wrapper around a kubernetes utility called 'kubectl'
+kc* are wrappers around a kubernetes utility called 'kubectl'
 
 It simplifies a few operations which I tend to use a lot
 

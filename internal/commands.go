@@ -6,12 +6,18 @@ import (
 	"strconv"
 )
 
-func Logg(context string, verbose, follow bool, tail int, args []string) (int, error) {
-	if len(args) < 1 {
-		log.Printf("Need an identifier for log")
-		os.Exit(1)
+func Logg(context string, verbose, follow bool, tail int, label string, args []string) (int, error) {
+	var pod string
+	if label != "" {
+		pod = Pod(context, verbose, label)
+	} else {
+		if len(args) < 1 {
+			log.Printf("Need an identifier for log")
+			os.Exit(1)
+		}
+		pod = args[0]
+		args = args[1:]
 	}
-	p := (args)[0]
 	allArgs := []string{"log"}
 	if follow {
 		allArgs = append(allArgs, "-f")
@@ -19,8 +25,7 @@ func Logg(context string, verbose, follow bool, tail int, args []string) (int, e
 	if tail != -1 {
 		allArgs = append(allArgs, "--tail", strconv.Itoa(tail))
 	}
-	pod := Pod(context, verbose, p)
 	allArgs = append(allArgs, pod)
-	allArgs = append(allArgs, args[1:]...)
+	allArgs = append(allArgs, args...)
 	return Run(PrepKC(context, allArgs...), verbose)
 }

@@ -29,17 +29,26 @@ It's not meant to be a full replacement or in the least bit comprehensive. If yo
 
 [kc*] [namespace] [options] [args]
 
-e.g. Given a namespace 'dev', and a pod called toolbox, tail its logs:
+e.g. Given a namespace 'dev', and a pod called toolbox, find all the services
 
-    kct dev toolbox
+    kc dev get service
 
-e.g. Given namespace 'dev' and 'test', and several pods labelled name=toolbox, run `ps aux` on each:
+e.g. Given namespaces 'dev' and 'test', and several pods labelled name=toolbox, run `ps aux` on each:
 
-    kcsh dev,test -l name=toolbox -- ps aux
+    kcx dev,test -l name=toolbox -- ps aux
+
+e.g. Given namespaces 'dev' and 'test', and several pods labelled name=toolbox, tail them all at once…
+
+    kct dev,test -l name=toolbox
 
 ### Contexts
 
-kc commands all take an optional context name as a first arg. 
-See ~/.kube/config for your context definitions. 
-For convenience I have one context defined for each namespace within every cluster I work with.
+kc commands all take an optional comma-delimited list of context names, as a first arg. So, you can easily run kubectl commands across data centres.
 
+See ~/.kube/config for your context definitions. 
+
+Tip: I have one context defined for each namespace within every cluster I work with. I don't bother with namespaces directly because it's easier to just have more contexts
+
+### kubectl flags
+
+Note that it should be possible to pass the right args to kubectl itself, particularly with kc

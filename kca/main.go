@@ -22,11 +22,21 @@ func main() {
 		args = args[2:]
 	}
 	fs.Parse(args)
-	e, err := apply(context, *verbose, *file)
-	if err != nil {
-		log.Printf("Error: %s", err)
+	contexts := strings.Split(context, ",")
+	for _, context := range contexts {
+		if len(contexts) > 1 || *verbose {
+			log.Printf("context: %s", context)
+		}
+		e, err := apply(context, *verbose, *file)
+		if err != nil {
+			log.Printf("Error: %s", err)
+			os.Exit(e)
+		}
 	}
-	os.Exit(e)
+	if *verbose {
+		log.Print("done")
+	}
+
 }
 
 func apply(context string, verbose bool, file string) (int, error) {

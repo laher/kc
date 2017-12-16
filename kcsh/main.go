@@ -58,7 +58,9 @@ func shell(context string, verbose bool, label, container string, shell string, 
 		if len(pods) == 1 {
 			allArgs = append(allArgs, "-it", pod, shell)
 			allArgs = append(allArgs, args...)
-			return kc.Run(kc.PrepKC(context, allArgs...), verbose)
+			cmd := kc.PrepKC(context, allArgs...)
+			cmd.Stdin = os.Stdin //give up stdin (cannot capture Ctrl-C any more)
+			return kc.Run(cmd, verbose)
 		}
 		//no support for interactive mode with multiple-targets
 		go func(pod string) {

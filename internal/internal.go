@@ -68,13 +68,11 @@ func Prep(args ...string) *exec.Cmd {
 		log.Printf("Couldn't find exe %s - %s", p, err)
 	}
 	cmd := exec.Command(args[0])
-
 	cmd.Args = args
-
-	// redirect IO
+	// redirect output
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	// don't redirect stdin except for interactive sessions (exec -it). It can prevent Ctrl-C (quit) from working
 	return cmd
 }
 

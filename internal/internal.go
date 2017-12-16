@@ -11,36 +11,34 @@ import (
 )
 
 //resolve pod name using a selector if necessary
-func Pod(context string, verbose bool, p string) string {
-	switch {
-	case strings.Contains(p, "="):
-		gpC := PrepKC(context, "get", "pod", "-o=name", "--selector", p)
-		r, w := io.Pipe()
-		gpC.Stdout = w
-		br := bufio.NewReader(r)
-		name := ""
-		go func() {
-			for {
-				b, _, err := br.ReadLine()
-				if err != nil {
-					//done
-					return
-				}
-				name = string(b)
-			}
-		}()
+func PodsByLabel(context string, verbose bool, label string) []string {
+	gpC := PrepKC(context, "get", "pod", `-o=jsonpath={range .items[*]}{@.metadata.name}{"\n"}{end}`, "--selector", label)
+	r, w := io.Pipe()
+	gpC.Stdout = w
+	scanner := bufio.NewScanner(r)
+	names := []string{}
+	go func() {
 		ex, err := Run(gpC, verbose)
 		if err != nil {
 			log.Printf("Error fetching pod %s\n", err)
 			os.Exit(ex)
 		}
-		if strings.HasPrefix(name, "pod/") {
-			return name[4:]
+		w.Close()
+	}()
+	for scanner.Scan() {
+		name := scanner.Text()
+		if strings.TrimSpace(name) != "" {
+			names = append(names, name)
 		}
-		return name
-	default:
-		return p
 	}
+
+	if err := scanner.Err(); err != nil {
+		//done
+		log.Printf("Error scanning output %s\n", err)
+		os.Exit(1)
+	}
+
+	return names
 }
 
 func PrepKC(context string, args ...string) *exec.Cmd {

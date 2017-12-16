@@ -12,14 +12,19 @@ import (
 	"github.com/laher/kc/internal"
 )
 
-var (
-	context = flag.String("c", "", "kubectl context")
-	verbose = flag.Bool("v", false, "verbose")
-)
-
 func main() {
-	flag.Parse()
-	e, err := versions(*context, *verbose)
+	var (
+		fs      = flag.NewFlagSet("kcv", flag.ExitOnError)
+		context string
+		verbose = fs.Bool("v", false, "verbose")
+	)
+	args := os.Args
+	if len(args) > 1 && !strings.HasPrefix(args[1], "-") {
+		context = args[1]
+		args = args[2:]
+	}
+	fs.Parse(args)
+	e, err := versions(context, *verbose)
 	if err != nil {
 		log.Printf("Error: %s", err)
 	}

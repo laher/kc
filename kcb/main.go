@@ -1,34 +1,46 @@
 package main
 
 import (
+	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	kc "github.com/laher/kc/internal"
 )
 
-var (
-	context    = flag.String("c", "", "kubectl context")
-	verbose    = flag.Bool("v", false, "verbose")
-	deployment = flag.String("d", "", "deployment")
-)
-
 func main() {
-	flag.Parse()
-	e, err := bounce(*context, *verbose, *deployment, flag.Args())
+	var (
+		fs         = flag.NewFlagSet("kcb", flag.ExitOnError)
+		context    string
+		verbose    = fs.Bool("v", false, "verbose")
+		deployment = flag.String("d", "", "deployment")
+		current    = flag.Int("c", 1, "current replicas")
+	)
+	args := os.Args
+	if len(args) > 1 && !strings.HasPrefix(args[1], "-") {
+		context = args[1]
+		args = args[2:]
+	}
+	fs.Parse(args)
+	e, err := bounce(context, *verbose, *deployment, *current, flag.Args())
 	if err != nil {
 		log.Printf("Error: %s", err)
 	}
 	os.Exit(e)
 }
 
-func bounce(context string, verbose bool, deployment string, args []string) (int, error) {
-	kcargs := []string{"scale", "--current-replicas=1", "--replicas=0", "deploy", deployment}
+func bounce(context string, verbose bool, deployment string, current int, args []string) (int, error) {
+	if deployment == "" {
+		return 1, errors.New("Resource name cannot be empty")
+	}
+	kcargs := []string{"scale", fmt.Sprintf("--current-replicas=%d", current), "--replicas=0", "deploy", deployment}
 	ex, err := kc.Run(kc.PrepKC(context, kcargs...), verbose)
 	if err != nil {
 		return ex, err
 	}
-	kcargs = []string{"scale", "--current-replicas=0", "--replicas=1", "deploy", deployment}
+	kcargs = []string{"scale", "--current-replicas=0", fmt.Sprintf("--replicas=%d", current), "deploy", deployment}
 	return kc.Run(kc.PrepKC(context, kcargs...), verbose)
 }

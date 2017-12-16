@@ -4,19 +4,28 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strings"
+	"sync"
 
 	kc "github.com/laher/kc/internal"
 )
 
-var (
-	context   = flag.String("c", "", "kubectl context")
-	container = flag.String("co", "", "container")
-	verbose   = flag.Bool("v", false, "verbose")
-)
-
 func main() {
-	flag.Parse()
-	e, err := shell(*context, *verbose, *container, flag.Args())
+	var (
+		fs        = flag.NewFlagSet("kcsh", flag.ExitOnError)
+		context   string
+		verbose   = fs.Bool("v", false, "verbose")
+		label     = fs.String("l", "", "select pod by label")
+		container = fs.String("c", "", "container")
+		sh        = fs.String("sh", "sh", "shell")
+	)
+	args := os.Args
+	if len(args) > 1 && !strings.HasPrefix(args[1], "-") {
+		context = args[1]
+		args = args[2:]
+	}
+	fs.Parse(args)
+	e, err := shell(context, *verbose, *label, *container, *sh, fs.Args())
 	if err != nil {
 		log.Printf("Error: %s", err)
 	}
@@ -24,18 +33,41 @@ func main() {
 
 }
 
-func shell(context string, verbose bool, container string, args []string) (int, error) {
-	if len(args) < 1 {
-		log.Printf("Need an identifier for exec")
-		os.Exit(1)
-	}
-	kcArgs := []string{"exec", "-it"}
+func shell(context string, verbose bool, label, container string, shell string, args []string) (int, error) {
+	kcArgs := []string{"exec"}
 	if container != "" {
 		kcArgs = append(kcArgs, "-c", container)
 	}
-	p := args[0]
-	pod := kc.Pod(context, verbose, p)
-	kcArgs = append(kcArgs, pod, "sh")
-	kcArgs = append(kcArgs, args[1:]...)
-	return kc.Run(kc.PrepKC(context, kcArgs...), verbose)
+	var pods []string
+	if label != "" {
+		pods = kc.PodsByLabel(context, verbose, label)
+	} else {
+		if len(args) < 1 {
+			log.Printf("Need an identifier for log")
+			os.Exit(1)
+		}
+		pods = []string{args[0]}
+		args = args[1:]
+	}
+	wg := sync.WaitGroup{}
+	for _, pod := range pods {
+		allArgs := []string{"exec"}
+		if len(pods) == 1 {
+			allArgs = append(allArgs, "-it", pod, shell)
+			allArgs = append(allArgs, args...)
+			return kc.Run(kc.PrepKC(context, allArgs...), verbose)
+		}
+		//no support for interactive mode with multiple-targets
+		go func(pod string) {
+			wg.Add(1)
+			allArgs = append(allArgs, pod, shell)
+			allArgs = append(allArgs, args...)
+			_, err := kc.Run(kc.PrepKC(context, kcArgs...), verbose)
+			if err != nil {
+				log.Printf("error: %v", err)
+			}
+		}(pod)
+	}
+	wg.Wait()
+	return 0, nil
 }

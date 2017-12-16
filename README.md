@@ -6,13 +6,14 @@ wrappers for a few kubectl commands
 
 kc* are wrappers around a kubernetes utility called 'kubectl'
 
-It simplifies a few operations which I tend to use a lot
+It simplifies a few operations which I tend to use a lot. Additionally all commands can be run on multiple 'contexts' at once.
 
  * kct/kcl: logging, potentially multiplexed
  * kcx/kcsh: exec, shell
  * kcv: versions of pods
  * kca,kcr: apply, replace resources based on config files
  * kcb: 'bounce' (scale down & up)
+ * kc: basic kubectl wrapper providing multi-context support
 
 It's not meant to be a full replacement or in the least bit comprehensive. If you want it do be different, I recommend you fork it and bend it to your own will. PRs would also be great, but I'd like to see other people twist it all around for different use cases.
 
@@ -32,9 +33,9 @@ e.g. Given a namespace 'dev', and a pod called toolbox, tail its logs:
 
     kct dev toolbox
 
-e.g. Given a namespace 'dev', and several pods labelled name=toolbox, run `ps aux` on each:
+e.g. Given namespace 'dev' and 'test', and several pods labelled name=toolbox, run `ps aux` on each:
 
-    kcsh dev -l name=toolbox -- ps aux
+    kcsh dev,test -l name=toolbox -- ps aux
 
 ### Contexts
 

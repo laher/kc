@@ -10,9 +10,8 @@ import (
 
 func main() {
 	var (
-		fs      = flag.NewFlagSet("kcl", flag.ExitOnError)
+		fs      = flag.NewFlagSet("kc", flag.ExitOnError)
 		verbose = fs.Bool("v", false, "verbose")
-		label   = fs.String("l", "", "select pod by label")
 	)
 	contexts, args := kc.Contexts(os.Args[1:])
 	fs.Parse(args)
@@ -20,8 +19,7 @@ func main() {
 		if len(contexts) > 1 || *verbose {
 			log.Printf("context: %s", context)
 		}
-
-		e, err := kc.Logg(context, *verbose, false, -1, *label, fs.Args())
+		e, err := kctl(context, *verbose, fs.Args())
 		if err != nil {
 			log.Printf("Error: %s", err)
 			os.Exit(e)
@@ -30,4 +28,11 @@ func main() {
 	if *verbose {
 		log.Print("done")
 	}
+}
+
+func kctl(context string, verbose bool, args []string) (int, error) {
+	kcArgs := []string{}
+	kcArgs = append(kcArgs, args...)
+	cmd := kc.PrepKC(context, kcArgs...)
+	return kc.Run(cmd, verbose)
 }

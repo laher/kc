@@ -4,7 +4,6 @@ import (
 	"flag"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/laher/kc/internal"
 )
@@ -12,16 +11,10 @@ import (
 func main() {
 	var (
 		fs      = flag.NewFlagSet("kcv", flag.ExitOnError)
-		context string
 		verbose = fs.Bool("v", false, "verbose")
 	)
-	args := os.Args
-	if len(args) > 1 && !strings.HasPrefix(args[1], "-") {
-		context = args[1]
-		args = args[2:]
-	}
+	contexts, args := kc.Contexts(os.Args[1:])
 	fs.Parse(args)
-	contexts := strings.Split(context, ",")
 	for _, context := range contexts {
 		if len(contexts) > 1 || *verbose {
 			log.Printf("context: %s", context)

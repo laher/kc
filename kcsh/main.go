@@ -4,7 +4,6 @@ import (
 	"flag"
 	"log"
 	"os"
-	"strings"
 	"sync"
 
 	kc "github.com/laher/kc/internal"
@@ -13,23 +12,27 @@ import (
 func main() {
 	var (
 		fs        = flag.NewFlagSet("kcsh", flag.ExitOnError)
-		context   string
 		verbose   = fs.Bool("v", false, "verbose")
 		label     = fs.String("l", "", "select pod by label")
 		container = fs.String("c", "", "container")
 		sh        = fs.String("sh", "sh", "shell")
 	)
-	args := os.Args
-	if len(args) > 1 && !strings.HasPrefix(args[1], "-") {
-		context = args[1]
-		args = args[2:]
-	}
+	contexts, args := kc.Contexts(os.Args[1:])
 	fs.Parse(args)
-	e, err := shell(context, *verbose, *label, *container, *sh, fs.Args())
-	if err != nil {
-		log.Printf("Error: %s", err)
+	for _, context := range contexts {
+		if len(contexts) > 1 || *verbose {
+			log.Printf("context: %s", context)
+		}
+
+		e, err := shell(context, *verbose, *label, *container, *sh, fs.Args())
+		if err != nil {
+			log.Printf("Error: %s", err)
+			os.Exit(e)
+		}
 	}
-	os.Exit(e)
+	if *verbose {
+		log.Print("done")
+	}
 
 }
 

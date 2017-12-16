@@ -10,7 +10,20 @@ import (
 	"syscall"
 )
 
-//resolve pod name using a selector if necessary
+func Contexts(args []string) ([]string, []string) {
+	var (
+		context string
+	)
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		context = args[0]
+		args = args[1:]
+	}
+	contexts := strings.Split(context, ",")
+
+	return contexts, args
+}
+
+//PodsByLabel resolves pod names using a selector
 func PodsByLabel(context string, verbose bool, label string) []string {
 	gpC := PrepKC(context, "get", "pod", `-o=jsonpath={range .items[*]}{@.metadata.name}{"\n"}{end}`, "--selector", label)
 	r, w := io.Pipe()

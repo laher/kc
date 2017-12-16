@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-func Logg(context string, verbose, follow bool, tail int, label string, args []string) (int, error) {
+func Logg(context string, verbose, follow bool, tail int, label string, args []string, wg *sync.WaitGroup) (int, error) {
 	var pods []string
 	if label != "" {
 		pods = PodsByLabel(context, verbose, label)
@@ -21,7 +21,6 @@ func Logg(context string, verbose, follow bool, tail int, label string, args []s
 		pods = []string{args[0]}
 		args = args[1:]
 	}
-	wg := sync.WaitGroup{}
 	for _, pod := range pods {
 		allArgs := []string{"log"}
 		if follow {
@@ -53,6 +52,5 @@ func Logg(context string, verbose, follow bool, tail int, label string, args []s
 			wg.Done()
 		}(pod)
 	}
-	wg.Wait()
 	return 0, nil
 }

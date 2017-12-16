@@ -22,7 +22,7 @@ func main() {
 		if len(contexts) > 1 || *verbose {
 			log.Printf("context: %s", context)
 		}
-		e, err := kc.Logg(context, *verbose, false, -1, *label, fs.Args(), &wg)
+		e, err := kc.Logg(context, *verbose, true, 1, *label, fs.Args(), &wg)
 		if err != nil {
 			log.Printf("Error: %s", err)
 			os.Exit(e)

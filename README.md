@@ -1,6 +1,6 @@
 # kc
 
-wrappers for a few kubectl commands
+wrappers for a few kubectl commands. Totally pre-alpha, YMMV.
 
 ## Background
 
@@ -27,17 +27,17 @@ It's not meant to be a full replacement or in the least bit comprehensive. If yo
 
 ## Usage
 
-[kc*] [namespace] [options] [args]
+kc[*] [contexts] [options] [args] [--] [options-directly-for-kubectl]
 
-e.g. Given a namespace 'dev', and a pod called toolbox, find all the services
+e.g. Given a context 'dev', and a pod called toolbox, find all the services
 
     kc dev get service
 
-e.g. Given namespaces 'dev' and 'test', and several pods labelled name=toolbox, run `ps aux` on each:
+e.g. Given contexts 'dev' and 'test', and several pods labelled name=toolbox, run `ps aux` on each:
 
     kcx dev,test -l name=toolbox -- ps aux
 
-e.g. Given namespaces 'dev' and 'test', and several pods labelled name=toolbox, tail them all at once…
+e.g. Given contexts 'dev' and 'test', and several pods labelled name=toolbox, tail them all at once…
 
     kct dev,test -l name=toolbox
 
@@ -47,8 +47,8 @@ kc commands all take an optional comma-delimited list of context names, as a fir
 
 See ~/.kube/config for your context definitions. 
 
-Tip: I have one context defined for each namespace within every cluster I work with. I don't bother with namespaces directly because it's easier to just have more contexts
+Tip: I have one context defined for each namespace within every cluster I work with. I don't bother with namespaces directly because it seems like less cognitive load to just have more contexts.
 
 ### kubectl flags
 
-Note that it should be possible to pass the right args to kubectl itself, particularly with kc
+Note that it should be possible to pass the right args to kubectl itself, particularly with kc. Use `--` as necessary to indicate to kc[*] that the subsequent flags are for kubectl itself

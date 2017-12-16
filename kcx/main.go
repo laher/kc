@@ -52,14 +52,14 @@ func exec(context string, verbose bool, label, container string, args []string) 
 	for _, pod := range pods {
 		allArgs := []string{"exec"}
 		if len(pods) == 1 {
-			allArgs = append(allArgs, "-it", pod)
+			allArgs = append(allArgs, "-it", pod, "--")
 			allArgs = append(allArgs, args...)
 			return kc.Run(kc.PrepKC(context, allArgs...), verbose)
 		}
 		//no support for interactive mode with multiple-targets
 		go func(pod string) {
 			wg.Add(1)
-			allArgs = append(allArgs, pod)
+			allArgs = append(allArgs, pod, "--")
 			allArgs = append(allArgs, args...)
 			_, err := kc.Run(kc.PrepKC(context, kcArgs...), verbose)
 			if err != nil {

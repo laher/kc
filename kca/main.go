@@ -20,7 +20,7 @@ func main() {
 		if len(contexts) > 1 || *verbose {
 			log.Printf("context: %s", context)
 		}
-		e, err := apply(context, *verbose, *file)
+		e, err := apply(context, *verbose, *file, fs.Args())
 		if err != nil {
 			log.Printf("Error: %s", err)
 			os.Exit(e)
@@ -31,7 +31,7 @@ func main() {
 	}
 }
 
-func apply(context string, verbose bool, file string) (int, error) {
-	args := []string{"apply", "-f", file}
+func apply(context string, verbose bool, file string, args []string) (int, error) {
+	args = append([]string{"apply", "-f", file}, args...)
 	return kc.Run(kc.PrepKC(context, args...), verbose)
 }

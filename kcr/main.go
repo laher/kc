@@ -21,7 +21,7 @@ func main() {
 			log.Printf("context: %s", context)
 		}
 
-		e, err := replace(context, *verbose, *file)
+		e, err := replace(context, *verbose, *file, fs.Args())
 		if err != nil {
 			log.Printf("Error: %s", err)
 			os.Exit(e)
@@ -32,7 +32,7 @@ func main() {
 	}
 }
 
-func replace(context string, verbose bool, file string) (int, error) {
-	args := []string{"replace", "--cascade", "--force", "-f", file}
+func replace(context string, verbose bool, file string, args []string) (int, error) {
+	args = append([]string{"replace", "--cascade", "--force", "-f", file}, args...)
 	return kc.Run(kc.PrepKC(context, args...), verbose)
 }

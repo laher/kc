@@ -23,7 +23,7 @@ func main() {
 		if len(contexts) > 1 || *verbose {
 			log.Printf("context: %s", context)
 		}
-		e, err := bounce(context, *verbose, *deployment, *current, flag.Args())
+		e, err := bounce(context, *verbose, *deployment, *current, fs.Args())
 		if err != nil {
 			log.Printf("Error: %s", err)
 			os.Exit(e)
@@ -39,10 +39,12 @@ func bounce(context string, verbose bool, deployment string, current int, args [
 		return 1, errors.New("Resource name cannot be empty")
 	}
 	kcargs := []string{"scale", fmt.Sprintf("--current-replicas=%d", current), "--replicas=0", "deploy", deployment}
+	kcargs = append(kcargs, args...)
 	ex, err := kc.Run(kc.PrepKC(context, kcargs...), verbose)
 	if err != nil {
 		return ex, err
 	}
 	kcargs = []string{"scale", "--current-replicas=0", fmt.Sprintf("--replicas=%d", current), "deploy", deployment}
+	kcargs = append(kcargs, args...)
 	return kc.Run(kc.PrepKC(context, kcargs...), verbose)
 }

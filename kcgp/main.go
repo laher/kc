@@ -103,7 +103,7 @@ func getpods(kconfig *api.Config, context string, namespace string, verbose bool
 		log.Printf("There are %d pods in namespace %s", len(pods.Items), namespace)
 	}
 	for _, pod := range pods.Items {
-		err = tmpl.Execute(os.Stderr, pod)
+		err = tmpl.Execute(os.Stdout, pod)
 		if err != nil {
 			return 1, err
 		}

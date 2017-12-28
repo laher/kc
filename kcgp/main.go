@@ -19,10 +19,16 @@ import (
 func main() {
 	log.SetFlags(0)
 	var (
+		templates = map[string]string{
+			"default": "{{.Name}}{{t}}{{.Status.Phase}}{{nl}}",
+			"names":   "{{.Name}}{{nl}}",
+			"images":  "{{range .Spec.Containers}}{{.Name}}{{t}}{{.Image}}{{nl}}{{end}}",
+		}
 		fs            = flag.NewFlagSet("kcgp", flag.ExitOnError)
 		verbose       = fs.Bool("v", false, "verbose")
 		labelSelector = fs.String("l", "", "label selector")
-		format        = fs.String("f", "{{.Name}}{{t}}{{.Status.Phase}}{{nl}}", "Representation of each pod")
+		templateName  = fs.String("t", "default", "Template name")
+		format        = fs.String("f", "", "Custom format to represent each pod (overrides -t)")
 	)
 	contexts, args := kc.Contexts(os.Args[1:])
 	fs.Usage = func() {
@@ -31,7 +37,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, " [contexts] is a comma-delimited list of contexts, as defined in your kubernetes config.\n")
 		fmt.Fprintf(os.Stderr, " [options] defined as follows:\n")
 		fs.PrintDefaults()
-		fmt.Fprintf(os.Stderr, " For field list see API docs for your version.\n e.g. https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#pod-v1-core\n")
+		fmt.Fprintf(os.Stderr, " Available templates:\n")
+		for k, v := range templates {
+			fmt.Fprintf(os.Stderr, "  %s: %s\n", k, v)
+		}
+		fmt.Fprintf(os.Stderr, " For field list see API docs for your version. e.g.\n  https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#pod-v1-core\n")
 	}
 	fs.Parse(args)
 
@@ -52,9 +62,20 @@ func main() {
 		"t":         func() string { return "\t" },
 		"tableflip": func() string { return "(╯°□°）╯︵ ┻━┻" },
 	}
-	tmpl, err := template.New("test").Funcs(funcMap).Parse(*format)
+	var fm string
+	if *format != "" {
+		fm = *format
+	} else {
+		var ok bool
+		fm, ok = templates[*templateName]
+		if !ok {
+			log.Printf("Template '%s' does not exist", *templateName)
+			os.Exit(1)
+		}
+	}
+	tmpl, err := template.New("test").Funcs(funcMap).Parse(fm)
 	if err != nil {
-		log.Printf("Error parsing template [%s]: [%v]", *format, err)
+		log.Printf("Error parsing template [%s]: [%v]", fm, err)
 		os.Exit(1)
 	}
 

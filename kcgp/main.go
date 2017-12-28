@@ -10,6 +10,7 @@ import (
 	"github.com/laher/kc/internal"
 
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
@@ -24,13 +25,19 @@ func main() {
 			"names":   "{{.Name}}{{nl}}",
 			"images":  "{{range .Spec.Containers}}{{.Name}}{{t}}{{.Image}}{{nl}}{{end}}",
 		}
-		fs            = flag.NewFlagSet("kcgp", flag.ExitOnError)
-		verbose       = fs.Bool("v", false, "verbose")
-		labelSelector = fs.String("l", "", "label selector")
-		templateName  = fs.String("t", "default", "Template name")
-		format        = fs.String("f", "", "Custom format to represent each pod (overrides -t)")
+		fs             = flag.NewFlagSet("kcgp", flag.ExitOnError)
+		verbose        = fs.Bool("v", false, "verbose")
+		labelSelector  = fs.String("l", "", "label selector")
+		templateName   = fs.String("t", "default", "Template name")
+		format         = fs.String("f", "", "Custom format to represent each pod (overrides -t)")
+		contexts, args = kc.Contexts(os.Args[1:])
+		funcMap        = template.FuncMap{
+			"nl":        func() string { return "\n" },
+			"t":         func() string { return "\t" },
+			"tableflip": func() string { return "(╯°□°）╯︵ ┻━┻" },
+		}
+		fm string
 	)
-	contexts, args := kc.Contexts(os.Args[1:])
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of kcgp:\n")
 		fmt.Fprintf(os.Stderr, " kcgp [contexts] [options]\n")
@@ -45,10 +52,8 @@ func main() {
 	}
 	fs.Parse(args)
 
-	rules := clientcmd.NewDefaultClientConfigLoadingRules()
-	kconfig, err := rules.Load()
+	kconfig, err := clientcmd.NewDefaultClientConfigLoadingRules().Load()
 	if err != nil {
-
 		log.Printf("Error loading kubectl config: [%s]", err)
 		os.Exit(1)
 	}
@@ -57,12 +62,6 @@ func main() {
 		contexts[0] = kconfig.CurrentContext
 	}
 
-	funcMap := template.FuncMap{
-		"nl":        func() string { return "\n" },
-		"t":         func() string { return "\t" },
-		"tableflip": func() string { return "(╯°□°）╯︵ ┻━┻" },
-	}
-	var fm string
 	if *format != "" {
 		fm = *format
 	} else {
@@ -85,11 +84,15 @@ func main() {
 			log.Printf("Error: context [%s] does not exist", context)
 			os.Exit(1)
 		}
-		if len(contexts) > 1 || *verbose {
+		if *verbose {
 			log.Printf("Context: %s, Namespace: %s", context, c.Namespace)
 		}
-
-		e, err := getpods(kconfig, context, c.Namespace, *verbose, *labelSelector, tmpl, fs.Args())
+		clientset, err := getClientset(kconfig, context)
+		if err != nil {
+			log.Printf("Error: %s", err)
+			os.Exit(1)
+		}
+		e, err := getpods(clientset.CoreV1(), context, c.Namespace, *verbose, *labelSelector, tmpl, len(contexts) > 1)
 		if err != nil {
 			log.Printf("Error: %s", err)
 			os.Exit(e)
@@ -114,9 +117,8 @@ func getClientset(kconfig *api.Config, context string) (*kubernetes.Clientset, e
 	return clientset, nil
 }
 
-func getpods(kconfig *api.Config, context string, namespace string, verbose bool, labelSelector string, tmpl *template.Template, args []string) (int, error) {
-	clientset, err := getClientset(kconfig, context)
-	pods, err := clientset.CoreV1().Pods(namespace).List(metav1.ListOptions{LabelSelector: labelSelector})
+func getpods(core v1.CoreV1Interface, context string, namespace string, verbose bool, labelSelector string, tmpl *template.Template, multiCtx bool) (int, error) {
+	pods, err := core.Pods(namespace).List(metav1.ListOptions{LabelSelector: labelSelector})
 	if err != nil {
 		return 1, err
 	}
@@ -124,6 +126,9 @@ func getpods(kconfig *api.Config, context string, namespace string, verbose bool
 		log.Printf("There are %d pods in namespace %s", len(pods.Items), namespace)
 	}
 	for _, pod := range pods.Items {
+		if multiCtx {
+			fmt.Fprintf(os.Stdout, "%s\t", context)
+		}
 		err = tmpl.Execute(os.Stdout, pod)
 		if err != nil {
 			return 1, err
